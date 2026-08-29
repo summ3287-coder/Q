@@ -1,0 +1,176 @@
+-- Universal FPS Game Script (Box ESP + White Tracers + FOV Silent Aimbot)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+-- GUI Setup
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+local UICorner = Instance.new("UICorner")
+
+ScreenGui.Parent = game.CoreGui
+
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+MainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
+MainFrame.Size = UDim2.new(0, 230, 0, 260)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+Title.Parent = MainFrame
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Text = "FPS Aimbot & ESP (TH)"
+Title.TextColor3 = Color3.fromRGB(0, 255, 200)
+Title.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+Title.TextSize = 16
+Title.Font = Enum.Font.SourceSansBold
+
+local function createButton(text, posY)
+    local btn = Instance.new("TextButton")
+    btn.Parent = MainFrame
+    btn.Position = UDim2.new(0.08, 0, posY, 0)
+    btn.Size = UDim2.new(0.84, 0, 0, 40)
+    btn.Text = text .. ": ปิด"
+    btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14
+    btn.Font = Enum.Font.SourceSansBold
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+    return btn
+end
+
+-- Buttons Setup
+local EspBoxBtn = createButton("กรอบสี่เหลี่ยม (Box ESP)", 0.20)
+local TracerBtn = createButton("เส้นโยงสีขาว (Tracers)", 0.39)
+local FOVAimbotBtn = createButton("วงกลมยิงออโต้ (FOV Aim)", 0.58)
+
+-- States
+local isBoxESP = false
+local isTracers = false
+local isAimbot = false
+
+EspBoxBtn.MouseButton1Click:Connect(function()
+    isBoxESP = not isBoxESP
+    EspBoxBtn.Text = "กรอบสี่เหลี่ยม (Box ESP): " .. (isBoxESP and "เปิด" or "ปิด")
+    EspBoxBtn.BackgroundColor3 = isBoxESP and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+end)
+
+TracerBtn.MouseButton1Click:Connect(function()
+    isTracers = not isTracers
+    TracerBtn.Text = "เส้นโยงสีขาว (Tracers): " .. (isTracers and "เปิด" or "ปิด")
+    TracerBtn.BackgroundColor3 = isTracers and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+end)
+
+FOVAimbotBtn.MouseButton1Click:Connect(function()
+    isAimbot = not isAimbot
+    FOVAimbotBtn.Text = "วงกลมยิงออโต้ (FOV Aim): " .. (isAimbot and "เปิด" or "ปิด")
+    FOVAimbotBtn.BackgroundColor3 = isAimbot and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+end)
+
+-- Drawing FOV Circle (สร้างวงกลมกลางจอ)
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Radius = 130 -- ขนาดรัศมีวงกลม (ปรับเพิ่ม/ลดได้)
+FOVCircle.Color = Color3.fromRGB(255, 255, 255) -- สีขาว
+FOVCircle.Thickness = 1.5
+FOVCircle.Filled = false
+FOVCircle.Transparency = 1
+FOVCircle.Visible = false
+
+-- Function to get closest enemy inside FOV
+local function getClosestPlayerInFOV()
+    local closestPlayer = nil
+    local shortestDistance = FOVCircle.Radius
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            -- เช็คว่าไม่ใช่ทีมเดียวกัน (ถ้ามีระบบทีม)
+            if not (player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team) then
+                local head = player.Character.Head
+                local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                
+                if onScreen then
+                    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+                    local targetPos = Vector2.new(pos.X, pos.Y)
+                    local distance = (mousePos - targetPos).Magnitude
+                    
+                    if distance < shortestDistance then
+                        shortestDistance = distance
+                        closestPlayer = player
+                    end
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- Main Update Loop
+RunService.RenderStepped:Connect(function()
+    -- Update FOV Circle Position
+    FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)
+    FOVCircle.Visible = isAimbot
+
+    -- Aimbot Target Lock
+    if isAimbot then
+        local target = getClosestPlayerInFOV()
+        if target and target.Character and target.Character:FindFirstChild("Head") then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Character.Head.Position)
+        end
+    end
+
+    -- Process ESP and Tracers
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local char = player.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local hrp = char.HumanoidRootPart
+                
+                -- 1. Box ESP (กรอบสี่เหลี่ยม)
+                local box = char:FindFirstChild("FPS_BoxESP")
+                if isBoxESP then
+                    if not box then
+                        box = Instance.new("SelectionBox")
+                        box.Name = "FPS_BoxESP"
+                        box.Color3 = Color3.fromRGB(255, 0, 0)
+                        box.LineThickness = 0.04
+                        box.Adornee = char
+                        box.Parent = char
+                    end
+                else
+                    if box then box:Destroy() end
+                end
+
+                -- 2. White Tracers (เส้นสีขาว)
+                local tracerLine = char:FindFirstChild("FPS_Tracer")
+                if isTracers then
+                    if not tracerLine and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        local a0 = Instance.new("Attachment", LocalPlayer.Character.HumanoidRootPart)
+                        local a1 = Instance.new("Attachment", hrp)
+                        
+                        local beam = Instance.new("Beam")
+                        beam.Name = "FPS_Tracer"
+                        beam.Attachment0 = a0
+                        beam.Attachment1 = a1
+                        beam.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255)) -- สีขาว
+                        beam.Width0 = 0.08
+                        beam.Width1 = 0.08
+                        beam.FaceCamera = true
+                        beam.Parent = char
+                    end
+                else
+                    if tracerLine then tracerLine:Destroy() end
+                end
+
+            end
+        end
+    end
+end)

@@ -1,0 +1,231 @@
+-- โหลด Rayfield UI Library
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- สร้าง UI Main Window (หน้าต่างเดิม เอกลักษณ์เดิม)
+local Window = Rayfield:CreateWindow({
+   Name = "Pilfering Pirates Hub",
+   LoadingTitle = "กำลังโหลดสคริปต์...",
+   LoadingSubtitle = "Delta Supported",
+   ConfigurationSaving = { Enabled = false },
+   Discord = { Enabled = false },
+   KeySystem = false
+})
+
+-- Services & Variables
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local InfiniteShootEnabled = false
+local JesusWalkEnabled = false
+local WaterPart = nil
+
+local ESPEnabled = false
+local ESPColor = Color3.fromRGB(255, 0, 0)
+
+-- ========================================
+-- TAB 1: เมนูหลัก (ยิงไร้คูลดาวน์ & เดินบนน้ำ)
+-- ========================================
+local MainTab = Window:CreateTab("หลัก", 4483362458)
+
+-- 1. ยิงไม่จำกัด / ยิงรัว (Fast Fire & Bypass Cooldown)
+MainTab:CreateToggle({
+   Name = "ยิงไม่จำกัด / ยิงรัว (Fast Fire)",
+   CurrentValue = false,
+   Flag = "InfShoot",
+   Callback = function(Value)
+       InfiniteShootEnabled = Value
+       if Value then
+           task.spawn(function()
+               while InfiniteShootEnabled do
+                   local char = LocalPlayer.Character
+                   if char then
+                       local tool = char:FindFirstChildOfClass("Tool")
+                       if tool then
+                           -- ปรับค่าคูลดาวน์ในสคริปต์ย่อยของปืน
+                           for _, v in pairs(tool:GetDescendants()) do
+                               if v:IsA("NumberValue") or v:IsA("IntValue") then
+                                   if v.Name:lower():find("cooldown") or v.Name:lower():find("delay") or v.Name:lower():find("reload") or v.Name:lower():find("wait") then
+                                       v.Value = 0
+                                   end
+                               elseif v:IsA("ModuleScript") then
+                                   -- Bypass โมดูลถ้ามี
+                                   pcall(function()
+                                       local module = require(v)
+                                       if type(module) == "table" then
+                                           if module.Cooldown then module.Cooldown = 0 end
+                                           if module.FireRate then module.FireRate = 0 end
+                                       end
+                                   end)
+                               end
+                           end
+                           
+                           -- สั่งยิงอาวุธ
+                           tool:Activate()
+                       end
+                   end
+                   task.wait(0.01)
+               end
+           end)
+       end
+   end,
+})
+
+-- 2. เดินบนน้ำ (Walk on Water)
+MainTab:CreateToggle({
+   Name = "เดินบนน้ำ (Walk on Water)",
+   CurrentValue = false,
+   Flag = "JesusFly",
+   Callback = function(Value)
+       JesusWalkEnabled = Value
+       
+       if JesusWalkEnabled then
+           if not WaterPart then
+               WaterPart = Instance.new("Part")
+               WaterPart.Name = "JesusPlatform"
+               WaterPart.Size = Vector3.new(3000, 1, 3000) 
+               WaterPart.Anchored = true
+               WaterPart.CanCollide = true
+               WaterPart.Transparency = 0.5
+               WaterPart.Color = Color3.fromRGB(0, 220, 255)
+               WaterPart.Material = Enum.Material.SmoothPlastic
+               WaterPart.Parent = workspace
+           end
+
+           task.spawn(function()
+               while JesusWalkEnabled do
+                   local char = LocalPlayer.Character
+                   if char and char:FindFirstChild("HumanoidRootPart") then
+                       local rootPos = char.HumanoidRootPart.Position
+                       WaterPart.Position = Vector3.new(rootPos.X, -2.5, rootPos.Z)
+                   end
+                   task.wait(0.05)
+               end
+           end)
+       else
+           if WaterPart then
+               WaterPart:Destroy()
+               WaterPart = nil
+           end
+       end
+   end,
+})
+
+-- ========================================
+-- TAB 2: มองทะลุ (ESP Visuals)
+-- ========================================
+local ESPTab = Window:CreateTab("มองทะลุ (ESP)", 4483362458)
+
+local function ApplyESP(player)
+    if player ~= LocalPlayer then
+        local function AddHighlight(character)
+            if not character:FindFirstChild("ESPHighlight") then
+                local highlight = Instance.new("Highlight")
+                highlight.Name = "ESPHighlight"
+                highlight.FillColor = ESPColor
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                highlight.FillTransparency = 0.4
+                highlight.OutlineTransparency = 0
+                highlight.Adornee = character
+                highlight.Parent = character
+            end
+        end
+
+        if player.Character then
+            AddHighlight(player.Character)
+        end
+
+        player.CharacterAdded:Connect(function(newChar)
+            if ESPEnabled then
+                task.wait(0.5)
+                AddHighlight(newChar)
+            end
+        end)
+    end
+end
+
+-- เปิด-ปิด ESP
+ESPTab:CreateToggle({
+   Name = "เปิดใช้งาน ESP (มองทะลุผู้เล่น)",
+   CurrentValue = false,
+   Flag = "ESPToggle",
+   Callback = function(Value)
+       ESPEnabled = Value
+       if Value then
+           for _, player in pairs(Players:GetPlayers()) do
+               ApplyESP(player)
+           end
+           
+           Players.PlayerAdded:Connect(function(player)
+               if ESPEnabled then
+                   ApplyESP(player)
+               end
+           end)
+       else
+           for _, player in pairs(Players:GetPlayers()) do
+               if player.Character and player.Character:FindFirstChild("ESPHighlight") then
+                   player.Character.ESPHighlight:Destroy()
+               end
+           end
+       end
+   end,
+})
+
+-- เลือกปรับสี ESP
+ESPTab:CreateColorPicker({
+    Name = "ปรับสี ESP (Color Picker)",
+    Color = Color3.fromRGB(255, 0, 0),
+    Flag = "ESPColorPicker",
+    Callback = function(Value)
+        ESPColor = Value
+        for _, player in pairs(Players:GetPlayers()) do
+            if player.Character and player.Character:FindFirstChild("ESPHighlight") then
+                player.Character.ESPHighlight.FillColor = ESPColor
+            end
+        end
+    end
+})
+
+-- ========================================
+-- 3. ปุ่ม Toggle เปิด/ปิด UI เมนู (ปุ่มวงกลม MENU เดิม)
+-- ========================================
+local ScreenGui = Instance.new("ScreenGui")
+local ToggleButton = Instance.new("TextButton")
+local UICorner = Instance.new("UICorner")
+
+-- ลบปุ่มเก่าออกก่อนหากมีอยู่แล้วเพื่อกันปุ่มซ้อน
+if game:GetService("CoreGui"):FindFirstChild("DeltaToggleButtonGui") then
+    game:GetService("CoreGui").DeltaToggleButtonGui:Destroy()
+end
+
+ScreenGui.Name = "DeltaToggleButtonGui"
+ScreenGui.Parent = game:GetService("CoreGui")
+
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Parent = ScreenGui
+ToggleButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+ToggleButton.Position = UDim2.new(0.02, 0, 0.2, 0)
+ToggleButton.Size = UDim2.new(0, 50, 0, 50)
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.Text = "MENU"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 14.00
+ToggleButton.Active = true
+ToggleButton.Draggable = true
+
+UICorner.CornerRadius = UDim.new(1, 0)
+UICorner.Parent = ToggleButton
+
+-- ระบบสลับ ซ่อน / แสดง หน้าต่าง Rayfield UI
+ToggleButton.MouseButton1Click:Connect(function()
+    local rayfieldGui = game:GetService("CoreGui"):FindFirstChild("Rayfield") or game:GetService("CoreGui"):FindFirstChild("RayfieldLibrary")
+    if rayfieldGui then
+        rayfieldGui.Enabled = not rayfieldGui.Enabled
+    end
+end)
+
+Rayfield:Notify({
+   Title = "อัปเดตเรียบร้อย",
+   Content = "แก้ระบบคูลดาวน์ภายใน + เพิ่มแท็บ ESP มองทะลุแล้วครับ",
+   Duration = 5,
+})
